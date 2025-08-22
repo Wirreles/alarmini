@@ -31,6 +31,18 @@ export const usePermissions = () => {
     }
 
     const permission = Notification.permission
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    const isChromeIOS = isIOS && /CriOS/.test(navigator.userAgent)
+
+    // En iOS, las notificaciones solo funcionan en Safari o PWA
+    if (isIOS && isChromeIOS) {
+      return {
+        granted: false,
+        denied: false,
+        prompt: false,
+        unsupported: true,
+      }
+    }
 
     return {
       granted: permission === "granted",
@@ -42,8 +54,9 @@ export const usePermissions = () => {
 
   // Check vibration support
   const checkVibrationPermission = useCallback(async (): Promise<PermissionStatus> => {
-    // Vibration is supported on most mobile devices and some desktop browsers
-    const isSupported = "vibrate" in navigator
+    // iOS nunca soporta vibración
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    const isSupported = !isIOS && "vibrate" in navigator
 
     return {
       granted: isSupported,
@@ -92,6 +105,17 @@ export const usePermissions = () => {
       return { granted: false, denied: false, prompt: false, unsupported: true }
     }
 
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    const isChromeIOS = isIOS && /CriOS/.test(navigator.userAgent)
+
+    // En iOS Chrome, mostrar instrucciones especiales
+    if (isIOS && isChromeIOS) {
+      console.log("ℹ️ iOS Chrome: Las notificaciones requieren Safari o PWA")
+      const status = { granted: false, denied: false, prompt: false, unsupported: true }
+      setPermissions((prev) => ({ ...prev, notifications: status }))
+      return status
+    }
+
     try {
       console.log("🔔 Solicitando permisos de notificación...")
       const permission = await Notification.requestPermission()
@@ -123,8 +147,8 @@ export const usePermissions = () => {
     try {
       console.log("🔧 Registrando Service Worker...")
       
-      // Try to register the Firebase messaging service worker
-      const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js", {
+      // Try to register the basic service worker
+      const registration = await navigator.serviceWorker.register("/sw.js", {
         scope: "/"
       })
       
@@ -140,23 +164,18 @@ export const usePermissions = () => {
     } catch (error) {
       console.error("❌ Error registrando Service Worker:", error)
       
-      // Try to register a basic service worker as fallback
-      try {
-        console.log("🔄 Intentando registrar service worker básico...")
-        const fallbackRegistration = await navigator.serviceWorker.register("/sw.js", {
-          scope: "/"
-        })
-        console.log("✅ Service Worker básico registrado:", fallbackRegistration)
-        
-        const status = { granted: true, denied: false, prompt: false, unsupported: false }
-        setPermissions((prev) => ({ ...prev, serviceWorker: status }))
-        return status
-      } catch (fallbackError) {
-        console.error("❌ Error con service worker de respaldo:", fallbackError)
-        const status = { granted: false, denied: true, prompt: false, unsupported: false }
+      // En iOS, el Service Worker puede no ser crítico
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+      if (isIOS) {
+        console.log("ℹ️ iOS: Service Worker no crítico para la funcionalidad")
+        const status = { granted: false, denied: false, prompt: false, unsupported: false }
         setPermissions((prev) => ({ ...prev, serviceWorker: status }))
         return status
       }
+      
+      const status = { granted: false, denied: true, prompt: false, unsupported: false }
+      setPermissions((prev) => ({ ...prev, serviceWorker: status }))
+      return status
     }
   }, [])
 
