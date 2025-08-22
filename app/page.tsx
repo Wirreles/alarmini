@@ -73,9 +73,8 @@ export default function AlarmApp() {
 
       if (success) {
         setLastActivation(new Date())
-      } else {
-        alert("Error al enviar la alarma. Inténtalo de nuevo.")
       }
+      // No mostrar alert de error - el hook ya maneja los errores
 
       // Remove pulse animation
       setTimeout(() => {
@@ -83,7 +82,7 @@ export default function AlarmApp() {
       }, 500)
     } catch (error) {
       console.error("Error activating alarm:", error)
-      alert("Error al enviar la alarma. Inténtalo de nuevo.")
+      // No mostrar alert - el hook ya maneja los errores
     } finally {
       setIsActivating(false)
     }

@@ -187,5 +187,7 @@ export const useNotifications = () => {
     // Compatibility properties
     isSubscribed: isReady,
     token: isReady ? "local-token" : null,
+    isSupported: true, // Siempre soportado en navegadores modernos
+    permission: isReady ? "granted" : "default" as NotificationPermission,
   }
 }
