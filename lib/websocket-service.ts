@@ -23,6 +23,7 @@ class WebSocketService {
   private connectionHandlers: ((connected: boolean) => void)[] = []
   private deviceId: string
   private deviceInfo: any
+  private lastProcessedAlarmTimestamp: number = 0
 
   constructor() {
     // Generar ID único para este dispositivo
@@ -164,6 +165,7 @@ class WebSocketService {
 
       const result = await response.json()
       console.log('✅ Alarma enviada:', result)
+      console.log('📡 Alarma enviada a', result.recipients?.length || 0, 'dispositivos')
       
       // Notificar a los handlers locales
       const alarmMessage: AlarmMessage = {
@@ -172,6 +174,7 @@ class WebSocketService {
         senderId: this.deviceId
       }
       
+      console.log('🔄 Notificando handlers locales con mensaje:', alarmMessage)
       this.notifyMessageHandlers(alarmMessage)
       
       return true
@@ -186,6 +189,8 @@ class WebSocketService {
     if (!this._isConnected) return
 
     try {
+      console.log('🔍 Polling para nuevas alarmas...')
+      
       const response = await fetch('/api/websocket', {
         method: 'POST',
         headers: {
@@ -200,10 +205,15 @@ class WebSocketService {
       if (response.ok) {
         const result = await response.json()
         
-        // Procesar alarmas del historial que no sean nuestras
-        if (result.alarmHistory) {
+        // Procesar solo alarmas nuevas que no sean nuestras
+        if (result.alarmHistory && Array.isArray(result.alarmHistory)) {
+          let newAlarmsCount = 0
+          
           result.alarmHistory.forEach((alarm: any) => {
-            if (alarm.senderId !== this.deviceId) {
+            // Solo procesar alarmas que no sean nuestras y sean más recientes que la última procesada
+            if (alarm.senderId !== this.deviceId && alarm.timestamp > this.lastProcessedAlarmTimestamp) {
+              console.log('🆕 Nueva alarma detectada:', alarm)
+              
               const alarmMessage: AlarmMessage = {
                 type: alarm.type,
                 message: alarm.message,
@@ -211,10 +221,20 @@ class WebSocketService {
                 senderId: alarm.senderId
               }
               
+              // Actualizar timestamp de última alarma procesada
+              this.lastProcessedAlarmTimestamp = Math.max(this.lastProcessedAlarmTimestamp, alarm.timestamp)
+              
               // Notificar a los handlers locales
               this.notifyMessageHandlers(alarmMessage)
+              newAlarmsCount++
             }
           })
+          
+          if (newAlarmsCount > 0) {
+            console.log(`✅ ${newAlarmsCount} nueva(s) alarma(s) procesada(s)`)
+          } else {
+            console.log('ℹ️ No hay nuevas alarmas')
+          }
         }
       }
     } catch (error) {

@@ -352,12 +352,13 @@ export const useNotifications = () => {
         console.log("🔌 Estado de conexión WebSocket:", connected ? "Conectado" : "Desconectado")
       })
 
-      // Iniciar polling para alarmas (cada 5 segundos)
+      // Iniciar polling para alarmas (cada 3 segundos para mayor responsividad)
       const pollInterval = setInterval(() => {
         if (websocketService.getConnectionStatus()) {
+          console.log('⏰ Ejecutando polling programado...')
           websocketService.pollForAlarms()
         }
-      }, 5000)
+      }, 3000)
 
       return () => {
         clearInterval(pollInterval)
