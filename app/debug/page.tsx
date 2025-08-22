@@ -24,8 +24,14 @@ export default function DebugPage() {
       const statusResponse = await fetch('/api/websocket')
       if (statusResponse.ok) {
         const statusData = await statusResponse.json()
+        console.log('📊 Debug info actualizada:', statusData)
         setDebugInfo(statusData)
-        setConnections(statusData.devices || [])
+        
+        // Los dispositivos están en statusData.devices
+        const devices = statusData.devices || []
+        console.log('📱 Dispositivos encontrados:', devices.length, devices)
+        setConnections(devices)
+        
         setAlarmHistory(statusData.alarmHistory || [])
       }
     } catch (error) {
@@ -103,6 +109,9 @@ export default function DebugPage() {
         {/* Dispositivos Conectados */}
         <Card className="p-6">
           <h2 className="text-xl font-semibold mb-4">Dispositivos Conectados</h2>
+          <div className="text-sm text-muted-foreground mb-2">
+            Total: {connections.length} | Estado: {debugInfo.totalConnections || 0}
+          </div>
           <div className="space-y-2">
             {connections.length > 0 ? (
               connections.map((device, index) => (
@@ -119,7 +128,15 @@ export default function DebugPage() {
                 </div>
               ))
             ) : (
-              <p className="text-muted-foreground text-center">No hay dispositivos conectados</p>
+              <div className="text-center space-y-2">
+                <p className="text-muted-foreground">No hay dispositivos conectados</p>
+                <p className="text-xs text-muted-foreground">
+                  Debug: connections.length = {connections.length}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  API: totalConnections = {debugInfo.totalConnections || 0}
+                </p>
+              </div>
             )}
           </div>
         </Card>

@@ -231,15 +231,19 @@ export const useNotifications = () => {
       }
 
       try {
-        // Enviar alarma a través de WebSocket (si está disponible)
+        // Enviar alarma a través de WebSocket (SIEMPRE intentar)
         let wsSuccess = false
-        if (websocketService.getConnectionStatus()) {
-          try {
-            wsSuccess = await websocketService.sendAlarm({ type })
-            console.log("📡 Alarma enviada a través de WebSocket:", wsSuccess)
-          } catch (error) {
-            console.warn("⚠️ Error enviando alarma por WebSocket, usando modo local:", error)
+        try {
+          // Intentar conectar si no está conectado
+          if (!websocketService.getConnectionStatus()) {
+            console.log("🔌 WebSocket desconectado, intentando conectar...")
+            await websocketService.connect()
           }
+          
+          wsSuccess = await websocketService.sendAlarm({ type })
+          console.log("📡 Alarma enviada a través de WebSocket:", wsSuccess)
+        } catch (error) {
+          console.warn("⚠️ Error enviando alarma por WebSocket, usando modo local:", error)
         }
 
         // Send to other tabs via BroadcastChannel (fallback local)
@@ -307,62 +311,71 @@ export const useNotifications = () => {
 
   // Configurar listener para mensajes WebSocket
   useEffect(() => {
-    if (websocketService.getConnectionStatus()) {
-      websocketService.onMessage((message: AlarmMessage) => {
-        console.log("📨 Mensaje WebSocket recibido:", message)
-        
-        // Ignorar mensajes propios
-        if (message.senderId === websocketService.getDeviceId()) {
-          console.log("🚫 Ignorando mensaje propio")
-          return
-        }
-
-        // Activar alarma local
-        const alarmType = message.type
-        console.log("🚨 Activando alarma WebSocket tipo:", alarmType)
-
-        // Play alarm effects
-        if (alarmType === "sound") {
-          playAlarmEffects("sound")
-        } else if (alarmType === "vibrate") {
-          playAlarmEffects("vibrate")
-        } else {
-          playAlarmEffects("both")
-        }
-
-        // Show notification
-        if (Notification.permission === "granted") {
-          const notification = new Notification("🚨 Alarma Compartida Activada", {
-            body: `Alarma de tipo ${alarmType === "sound" ? "sonido" : "vibración"} activada desde otro dispositivo`,
-            icon: "/icon-192x192.png",
-            tag: "shared-alarm-websocket",
-            requireInteraction: true,
-            silent: alarmType === "vibrate",
-          })
-
-          setTimeout(() => {
-            notification.close()
-          }, 10000)
-        }
-      })
-
-      // Configurar listener para cambios de conexión
-      websocketService.onConnectionChange((connected: boolean) => {
-        setIsConnected(connected)
-        console.log("🔌 Estado de conexión WebSocket:", connected ? "Conectado" : "Desconectado")
-      })
-
-      // Iniciar polling para alarmas (cada 3 segundos para mayor responsividad)
-      const pollInterval = setInterval(() => {
-        if (websocketService.getConnectionStatus()) {
-          console.log('⏰ Ejecutando polling programado...')
-          websocketService.pollForAlarms()
-        }
-      }, 3000)
-
-      return () => {
-        clearInterval(pollInterval)
+    console.log("🔧 Configurando listeners WebSocket...")
+    
+    // Configurar listener de mensajes (SIEMPRE)
+    websocketService.onMessage((message: AlarmMessage) => {
+      console.log("📨 Mensaje WebSocket recibido:", message)
+      
+      // Ignorar mensajes propios
+      if (message.senderId === websocketService.getDeviceId()) {
+        console.log("🚫 Ignorando mensaje propio")
+        return
       }
+
+      // Activar alarma local
+      const alarmType = message.type
+      console.log("🚨 Activando alarma WebSocket tipo:", alarmType)
+
+      // Play alarm effects
+      if (alarmType === "sound") {
+        playAlarmEffects("sound")
+      } else if (alarmType === "vibrate") {
+        playAlarmEffects("vibrate")
+      } else {
+        playAlarmEffects("both")
+      }
+
+      // Show notification
+      if (Notification.permission === "granted") {
+        const notification = new Notification("🚨 Alarma Compartida Activada", {
+          body: `Alarma de tipo ${alarmType === "sound" ? "sonido" : "vibración"} activada desde otro dispositivo`,
+          icon: "/icon-192x192.png",
+          tag: "shared-alarm-websocket",
+          requireInteraction: true,
+          silent: alarmType === "vibrate",
+        })
+
+        setTimeout(() => {
+          notification.close()
+        }, 10000)
+      }
+    })
+
+    // Configurar listener para cambios de conexión (SIEMPRE)
+    websocketService.onConnectionChange((connected: boolean) => {
+      setIsConnected(connected)
+      console.log("🔌 Estado de conexión WebSocket:", connected ? "Conectado" : "Desconectado")
+    })
+
+    // Iniciar polling para alarmas (cada 3 segundos para mayor responsividad)
+    const pollInterval = setInterval(() => {
+      // Intentar conectar si no está conectado
+      if (!websocketService.getConnectionStatus()) {
+        console.log('🔌 WebSocket desconectado, intentando conectar...')
+        websocketService.connect().then(connected => {
+          if (connected) {
+            console.log('✅ Reconectado exitosamente')
+          }
+        })
+      } else {
+        console.log('⏰ Ejecutando polling programado...')
+        websocketService.pollForAlarms()
+      }
+    }, 3000)
+
+    return () => {
+      clearInterval(pollInterval)
     }
   }, [playAlarmEffects])
 
