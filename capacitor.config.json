@@ -1,0 +1,49 @@
+{
+  "appId": "com.sharedalarm.app",
+  "appName": "Alarma Compartida",
+  "webDir": "out",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "buildOptions": {
+      "keystorePath": "android/app/release-key.keystore",
+      "keystoreAlias": "shared-alarm-key",
+      "releaseType": "APK"
+    },
+    "permissions": [
+      "android.permission.INTERNET",
+      "android.permission.VIBRATE",
+      "android.permission.WAKE_LOCK",
+      "android.permission.RECEIVE_BOOT_COMPLETED",
+      "android.permission.FOREGROUND_SERVICE",
+      "android.permission.POST_NOTIFICATIONS",
+      "com.google.android.c2dm.permission.RECEIVE"
+    ]
+  },
+  "ios": {
+    "scheme": "Alarma Compartida",
+    "buildOptions": {
+      "developmentTeam": "YOUR_TEAM_ID",
+      "packageType": "ad-hoc"
+    }
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon_config_sample",
+      "iconColor": "#ea580c",
+      "sound": "beep.wav"
+    },
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#ffffff",
+      "androidSplashResourceName": "splash",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false
+    }
+  }
+}
