@@ -13,8 +13,8 @@ export interface WebSocketMessage {
 }
 
 class WebSocketService {
-  private isConnected = false
-  private isConnecting = false
+  private _isConnected = false
+  private _isConnecting = false
   private reconnectAttempts = 0
   private maxReconnectAttempts = 5
   private reconnectDelay = 1000
@@ -38,11 +38,11 @@ class WebSocketService {
   }
 
   async connect(): Promise<boolean> {
-    if (this.isConnecting || this.isConnected) {
+    if (this._isConnecting || this._isConnected) {
       return true
     }
 
-    this.isConnecting = true
+    this._isConnecting = true
 
     try {
       console.log('🔌 Conectando a servicio de alarmas compartidas...')
@@ -67,8 +67,8 @@ class WebSocketService {
       const result = await response.json()
       console.log('✅ Conectado al servicio de alarmas:', result)
       
-      this.isConnected = true
-      this.isConnecting = false
+      this._isConnected = true
+      this._isConnecting = false
       this.reconnectAttempts = 0
       
       // Iniciar ping para mantener la conexión activa
@@ -80,7 +80,7 @@ class WebSocketService {
       return true
     } catch (error) {
       console.error('❌ Error conectando al servicio:', error)
-      this.isConnecting = false
+      this._isConnecting = false
       return false
     }
   }
@@ -88,7 +88,7 @@ class WebSocketService {
   private startPing(): void {
     // Enviar ping cada 15 segundos para mantener la conexión activa
     this.pingInterval = setInterval(async () => {
-      if (this.isConnected) {
+      if (this._isConnected) {
         try {
           await fetch('/api/websocket', {
             method: 'POST',
@@ -110,8 +110,8 @@ class WebSocketService {
   }
 
   private async handleConnectionLoss(): Promise<void> {
-    if (this.isConnected) {
-      this.isConnected = false
+    if (this._isConnected) {
+      this._isConnected = false
       this.notifyConnectionChange(false)
       
       // Intentar reconectar
@@ -128,7 +128,7 @@ class WebSocketService {
     console.log(`🔄 Reintentando conexión en ${delay}ms (intento ${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
     
     setTimeout(() => {
-      if (!this.isConnected) {
+      if (!this._isConnected) {
         this.connect()
       }
     }, delay)
@@ -136,7 +136,7 @@ class WebSocketService {
 
   async sendAlarm(alarmData: Omit<AlarmMessage, 'timestamp' | 'senderId'>): Promise<boolean> {
     try {
-      if (!this.isConnected) {
+      if (!this._isConnected) {
         console.warn('⚠️ No conectado, intentando conectar...')
         const connected = await this.connect()
         if (!connected) {
@@ -183,7 +183,7 @@ class WebSocketService {
 
   // Método para simular recepción de alarmas (en una implementación real, usarías Server-Sent Events o WebSockets)
   async pollForAlarms(): Promise<void> {
-    if (!this.isConnected) return
+    if (!this._isConnected) return
 
     try {
       const response = await fetch('/api/websocket', {
@@ -250,8 +250,14 @@ class WebSocketService {
     })
   }
 
+  // Método público para obtener el estado de conexión
   getConnectionStatus(): boolean {
-    return this.isConnected
+    return this._isConnected
+  }
+
+  // Método público para verificar si está conectado
+  isConnected(): boolean {
+    return this._isConnected
   }
 
   getDeviceId(): string {
@@ -260,7 +266,7 @@ class WebSocketService {
 
   async disconnect(): Promise<void> {
     try {
-      if (this.isConnected) {
+      if (this._isConnected) {
         await fetch('/api/websocket', {
           method: 'POST',
           headers: {
@@ -273,7 +279,7 @@ class WebSocketService {
         })
       }
       
-      this.isConnected = false
+      this._isConnected = false
       this.notifyConnectionChange(false)
       
       if (this.pingInterval) {
