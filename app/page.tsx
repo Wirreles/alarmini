@@ -27,6 +27,7 @@ export default function AlarmApp() {
     enableNotifications,
     triggerAlarm,
     clearError,
+    isConnected,
   } = useNotifications()
 
   const {

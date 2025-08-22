@@ -5,6 +5,10 @@ export class VibrationManager {
 
   // Check if vibration is supported
   get isSupported(): boolean {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+      console.log("📳 Vibración no disponible (servidor)")
+      return false
+    }
     const supported = "vibrate" in navigator
     console.log("📳 Soporte de vibración:", supported)
     return supported
@@ -96,8 +100,13 @@ export class VibrationManager {
       console.log("⏱️ Duración total:", duration + "ms")
 
       // Start vibration
-      const result = navigator.vibrate(vibrationPattern)
-      console.log("📳 Resultado de navigator.vibrate:", result)
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        const result = navigator.vibrate(vibrationPattern)
+        console.log("📳 Resultado de navigator.vibrate:", result)
+      } else {
+        console.warn("⚠️ navigator.vibrate no disponible")
+        return false
+      }
 
       // Set timeout to stop vibration
       this.vibrationTimeout = setTimeout(() => {
@@ -120,7 +129,7 @@ export class VibrationManager {
     console.log("🛑 Deteniendo vibración...")
 
     try {
-      if (this.isSupported) {
+      if (this.isSupported && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         navigator.vibrate(0) // Stop vibration
         console.log("📳 Vibración detenida")
       }
@@ -152,9 +161,14 @@ export class VibrationManager {
     }
 
     try {
-      const result = navigator.vibrate([200, 100, 200])
-      console.log("🧪 Resultado de prueba de vibración:", result)
-      return true
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        const result = navigator.vibrate([200, 100, 200])
+        console.log("🧪 Resultado de prueba de vibración:", result)
+        return true
+      } else {
+        console.warn("⚠️ navigator.vibrate no disponible para prueba")
+        return false
+      }
     } catch (error) {
       console.error("❌ Prueba de vibración falló:", error)
       return false
