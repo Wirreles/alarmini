@@ -4,24 +4,10 @@ import { useState, useEffect, useCallback } from "react"
 import { useAlarmEffects } from "./use-alarm-effects"
 import { websocketService, type AlarmMessage } from "@/lib/websocket-service"
 
-interface NotificationState {
-  permission: NotificationPermission | null
-  isReady: boolean
-  isSupported: boolean
-  error: string | null
-}
-
 export const useNotifications = () => {
-  const [state, setState] = useState<NotificationState>({
-    permission: null,
-    isReady: false,
-    isSupported: false,
-    error: null,
-  })
-
-  const [isInitializing, setIsInitializing] = useState(true)
-  const [isEnabling, setIsEnabling] = useState(false)
+  const [isReady, setIsReady] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const { playAlarmEffects } = useAlarmEffects({
     enableAudio: true,
@@ -29,209 +15,63 @@ export const useNotifications = () => {
     intensity: "emergency",
   })
 
-  // Check if notifications are supported
-  const checkSupport = useCallback(() => {
-    console.log("🔍 Verificando soporte de notificaciones...")
-
-    const hasNotification = "Notification" in window
-    const hasBroadcastChannel = "BroadcastChannel" in window
-    const hasLocalStorage = typeof Storage !== "undefined"
-    const hasServiceWorker = "serviceWorker" in navigator
-
-    console.log("📱 Soporte de Notification:", hasNotification)
-    console.log("📡 Soporte de BroadcastChannel:", hasBroadcastChannel)
-    console.log("💾 Soporte de LocalStorage:", hasLocalStorage)
-    console.log("🔧 Soporte de Service Worker:", hasServiceWorker)
-
-    const isSupported = hasNotification && hasBroadcastChannel && hasLocalStorage && hasServiceWorker
-
-    console.log("✅ Soporte completo:", isSupported)
-    setState((prev) => ({ ...prev, isSupported }))
-    return isSupported
-  }, [])
-
   // Initialize notifications
   const initializeNotifications = useCallback(async () => {
-    console.log("🚀 Inicializando sistema de notificaciones...")
-    setIsInitializing(true)
-    setState((prev) => ({ ...prev, error: null }))
-
+    console.log("🚀 Inicializando sistema de alarmas...")
+    
     try {
-      // Check support first
-      if (!checkSupport()) {
-        const errorMsg = "Tu navegador no soporta las funciones necesarias para las notificaciones"
-        console.error("❌", errorMsg)
-        setState((prev) => ({ ...prev, error: errorMsg }))
+      // Verificar permisos básicos
+      if (!("Notification" in window)) {
+        setError("Tu navegador no soporta notificaciones")
         return
       }
 
-      // Get current permission status
-      const permission = Notification.permission
-      console.log("🔐 Estado actual de permisos:", permission)
-
-      setState((prev) => ({
-        ...prev,
-        permission,
-        isReady: permission === "granted",
-      }))
-
-      // Set up broadcast channel for cross-tab communication
-      if (permission === "granted") {
-        setupBroadcastChannel()
-        
-        // Inicializar servicio WebSocket
-        try {
-          const wsReady = await websocketService.connect()
-          if (wsReady) {
-            setIsConnected(true)
-            console.log("✅ Conectado al sistema de alarmas compartidas")
-          }
-        } catch (error) {
-          console.warn("⚠️ WebSocket no disponible, usando modo local:", error)
-        }
+      // Conectar WebSocket
+      const wsReady = await websocketService.connect()
+      if (wsReady) {
+        setIsConnected(true)
+        setIsReady(true)
+        console.log("✅ Conectado al sistema de alarmas compartidas")
       }
     } catch (error) {
-      console.error("❌ Error inicializando notificaciones:", error)
-      setState((prev) => ({
-        ...prev,
-        error: "Error al inicializar el sistema de notificaciones",
-      }))
-    } finally {
-      setIsInitializing(false)
-      console.log("🏁 Inicialización completada")
+      console.error("❌ Error inicializando:", error)
+      setError("Error al conectar al sistema de alarmas")
     }
-  }, [checkSupport])
+  }, [])
 
-  // Set up broadcast channel for cross-tab communication
-  const setupBroadcastChannel = useCallback(() => {
-    console.log("📡 Configurando canal de comunicación...")
-
-    try {
-      const channel = new BroadcastChannel("shared-alarm")
-
-      channel.addEventListener("message", (event) => {
-        console.log("📨 Mensaje recibido de otra pestaña:", event.data)
-
-        if (event.data.type === "alarm") {
-          const alarmType = event.data.alarmType as "sound" | "vibrate"
-          console.log("🚨 Activando alarma tipo:", alarmType)
-
-          // Play alarm effects
-          if (alarmType === "sound") {
-            playAlarmEffects("sound")
-          } else if (alarmType === "vibrate") {
-            playAlarmEffects("vibrate")
-          } else {
-            playAlarmEffects("both")
-          }
-
-          // Show notification
-          if (Notification.permission === "granted") {
-            const notification = new Notification("🚨 Alarma Compartida Activada", {
-              body: `Alarma de tipo ${alarmType === "sound" ? "sonido" : "vibración"} activada desde otra pestaña`,
-              icon: "/icon-192x192.png",
-              tag: "shared-alarm",
-              requireInteraction: true,
-              silent: alarmType === "vibrate",
-            })
-
-            // Auto-close after 10 seconds
-            setTimeout(() => {
-              notification.close()
-            }, 10000)
-          }
-        }
-      })
-
-      // Store channel reference for cleanup
-      ;(window as any).alarmChannel = channel
-      console.log("✅ Canal de comunicación configurado")
-    } catch (error) {
-      console.error("❌ Error configurando canal de comunicación:", error)
-    }
-  }, [playAlarmEffects])
-
-  // Request permission and enable notifications
+  // Habilitar notificaciones (simplificado)
   const enableNotifications = useCallback(async () => {
     console.log("🔔 Habilitando notificaciones...")
-
-    if (!state.isSupported) {
-      console.error("❌ Navegador no soportado")
-      return false
-    }
-
-    setIsEnabling(true)
-    setState((prev) => ({ ...prev, error: null }))
-
+    
     try {
-      // Request permission
-      console.log("🙏 Solicitando permisos...")
       const permission = await Notification.requestPermission()
-      console.log("📱 Resultado de permisos:", permission)
-
-      if (permission !== "granted") {
-        const errorMsg = "Se necesitan permisos de notificación para usar la aplicación"
-        console.error("❌", errorMsg)
-        setState((prev) => ({
-          ...prev,
-          permission,
-          error: errorMsg,
-        }))
+      if (permission === "granted") {
+        setIsReady(true)
+        console.log("✅ Notificaciones habilitadas")
+        return true
+      } else {
+        setError("Se necesitan permisos de notificación")
         return false
       }
-
-      // Set up broadcast channel
-      setupBroadcastChannel()
-
-      // Inicializar servicio WebSocket
-      try {
-        const wsReady = await websocketService.connect()
-        if (wsReady) {
-          setIsConnected(true)
-          console.log("✅ Conectado al sistema de alarmas compartidas")
-        }
-      } catch (error) {
-        console.warn("⚠️ WebSocket no disponible, usando modo local:", error)
-      }
-
-      // Save permission status
-      localStorage.setItem("alarm-app-permission", "granted")
-
-      setState((prev) => ({
-        ...prev,
-        permission: "granted",
-        isReady: true,
-        error: null,
-      }))
-
-      console.log("🎉 Notificaciones habilitadas exitosamente")
-      return true
     } catch (error) {
       console.error("❌ Error habilitando notificaciones:", error)
-      setState((prev) => ({
-        ...prev,
-        error: "Error al habilitar las notificaciones",
-      }))
+      setError("Error al habilitar notificaciones")
       return false
-    } finally {
-      setIsEnabling(false)
     }
-  }, [state.isSupported, setupBroadcastChannel])
+  }, [])
 
-  // Send alarm to all connected tabs/devices
+  // Enviar alarma a todos los dispositivos
   const triggerAlarm = useCallback(
     async (type: "sound" | "vibrate") => {
       console.log("🚨 Activando alarma tipo:", type)
 
-      if (!state.isReady) {
-        const errorMsg = "Debes habilitar las notificaciones primero"
-        console.error("❌", errorMsg)
-        setState((prev) => ({ ...prev, error: errorMsg }))
+      if (!isReady) {
+        setError("Debes habilitar las notificaciones primero")
         return false
       }
 
       try {
-        // Enviar alarma a través de WebSocket (SIEMPRE intentar)
+        // Enviar alarma a través de WebSocket
         let wsSuccess = false
         try {
           // Intentar conectar si no está conectado
@@ -243,70 +83,27 @@ export const useNotifications = () => {
           wsSuccess = await websocketService.sendAlarm({ type })
           console.log("📡 Alarma enviada a través de WebSocket:", wsSuccess)
         } catch (error) {
-          console.warn("⚠️ Error enviando alarma por WebSocket, usando modo local:", error)
+          console.warn("⚠️ Error enviando alarma por WebSocket:", error)
         }
 
-        // Send to other tabs via BroadcastChannel (fallback local)
-        const channel = (window as any).alarmChannel
-        if (channel) {
-          console.log("📡 Enviando alarma a otras pestañas...")
-          channel.postMessage({
-            type: "alarm",
-            alarmType: type,
-            timestamp: Date.now(),
-          })
-        }
-
-        // Save to localStorage for persistence
-        localStorage.setItem(
-          "last-alarm",
-          JSON.stringify({
-            type,
-            timestamp: Date.now(),
-          }),
-        )
-
-        // Trigger local alarm effects
+        // Reproducir efectos locales
         console.log("🚨 Activando efectos locales...")
-        if (type === "sound") {
-          playAlarmEffects("sound")
-        } else {
-          playAlarmEffects("vibrate")
-        }
-
-        // Show local notification
-        if (Notification.permission === "granted") {
-          const notification = new Notification("🚨 Alarma Activada", {
-            body: `Has activado una alarma de ${type === "sound" ? "sonido" : "vibración"}`,
-            icon: "/icon-192x192.png",
-            tag: "shared-alarm-local",
-            requireInteraction: true,
-            silent: type === "vibrate",
-          })
-
-          setTimeout(() => {
-            notification.close()
-          }, 10000)
-        }
+        playAlarmEffects(type)
 
         console.log("✅ Alarma activada exitosamente")
-        return wsSuccess || true // Retornar true si WebSocket falló pero la alarma local funcionó
+        return wsSuccess || true
       } catch (error) {
         console.error("❌ Error activando alarma:", error)
-        setState((prev) => ({
-          ...prev,
-          error: "Error al activar la alarma",
-        }))
+        setError("Error al activar la alarma")
         return false
       }
     },
-    [state.isReady, playAlarmEffects],
+    [isReady, playAlarmEffects],
   )
 
   // Clear error
   const clearError = useCallback(() => {
-    console.log("🧹 Limpiando errores")
-    setState((prev) => ({ ...prev, error: null }))
+    setError(null)
   }, [])
 
   // Configurar listener para mensajes WebSocket
@@ -323,18 +120,14 @@ export const useNotifications = () => {
         return
       }
 
-      // Activar alarma local
+      // Activar alarma local con delay para evitar conflictos
       const alarmType = message.type
       console.log("🚨 Activando alarma WebSocket tipo:", alarmType)
 
-      // Play alarm effects
-      if (alarmType === "sound") {
-        playAlarmEffects("sound")
-      } else if (alarmType === "vibrate") {
-        playAlarmEffects("vibrate")
-      } else {
-        playAlarmEffects("both")
-      }
+      // Delay pequeño para evitar conflictos de audio
+      setTimeout(() => {
+        playAlarmEffects(alarmType)
+      }, 100)
 
       // Show notification
       if (Notification.permission === "granted") {
@@ -358,21 +151,15 @@ export const useNotifications = () => {
       console.log("🔌 Estado de conexión WebSocket:", connected ? "Conectado" : "Desconectado")
     })
 
-    // Iniciar polling para alarmas (cada 3 segundos para mayor responsividad)
-    const pollInterval = setInterval(() => {
-      // Intentar conectar si no está conectado
-      if (!websocketService.getConnectionStatus()) {
-        console.log('🔌 WebSocket desconectado, intentando conectar...')
-        websocketService.connect().then(connected => {
-          if (connected) {
-            console.log('✅ Reconectado exitosamente')
-          }
-        })
-      } else {
-        console.log('⏰ Ejecutando polling programado...')
-        websocketService.pollForAlarms()
-      }
-    }, 3000)
+          // Iniciar polling para alarmas (cada 3 segundos)
+      const pollInterval = setInterval(() => {
+        // Intentar conectar si no está conectado
+        if (!websocketService.getConnectionStatus()) {
+          websocketService.connect()
+        } else {
+          websocketService.pollForAlarms()
+        }
+      }, 3000)
 
     return () => {
       clearInterval(pollInterval)
@@ -385,27 +172,20 @@ export const useNotifications = () => {
 
     // Cleanup on unmount
     return () => {
-      const channel = (window as any).alarmChannel
-      if (channel) {
-        channel.close()
-      }
-      
-      // Limpiar servicio WebSocket
       websocketService.cleanup()
     }
   }, [initializeNotifications])
 
   return {
-    ...state,
-    isInitializing,
-    isEnabling,
+    isReady,
     isConnected,
+    error,
     enableNotifications,
     triggerAlarm,
     initializeNotifications,
     clearError,
     // Compatibility properties
-    isSubscribed: state.isReady,
-    token: state.isReady ? "local-token" : null,
+    isSubscribed: isReady,
+    token: isReady ? "local-token" : null,
   }
 }
