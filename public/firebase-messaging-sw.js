@@ -1,120 +1,156 @@
-importScripts("https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js")
-importScripts("https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js")
+// Firebase Messaging Service Worker
+// Este service worker maneja las notificaciones push de FCM
 
-// Declare firebase variable
-const firebase = self.firebase
+console.log('🔧 Firebase Messaging Service Worker cargado')
 
-const firebaseConfig = {
-  apiKey: "AIzaSyABvmRsLlnbYZ2rqYb8LpRkx3GJgyynUN0",
-  authDomain: "pdf-manager-7fbf8.firebaseapp.com",
-  databaseURL: "https://pdf-manager-7fbf8-default-rtdb.firebaseio.com",
-  projectId: "pdf-manager-7fbf8",
-  storageBucket: "pdf-manager-7fbf8.appspot.com",
-  messagingSenderId: "775859610688",
-  appId: "1:775859610688:web:16f5eb9fdcda34115eeba5",
-  measurementId: "G-VP3479TRHV",
+// Configuración de FCM
+const FCM_CONFIG = {
+  apiKey: "tu-api-key-aqui",
+  authDomain: "tu-proyecto.firebaseapp.com",
+  projectId: "tu-proyecto-id",
+  storageBucket: "tu-proyecto.appspot.com",
+  messagingSenderId: "tu-sender-id",
+  appId: "tu-app-id",
 }
 
-firebase.initializeApp(firebaseConfig)
+// Importar Firebase Messaging
+importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js')
+importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js')
+
+// Inicializar Firebase
+if (firebase.apps.length === 0) {
+  firebase.initializeApp(FCM_CONFIG)
+}
 
 const messaging = firebase.messaging()
 
-// Enhanced vibration patterns
-const VIBRATION_PATTERNS = {
-  emergency: [500, 200, 500, 200, 500, 200, 100, 100, 100, 100, 100, 100, 500, 200, 500, 200, 500],
-  alert: [300, 150, 300, 150, 300, 150, 100, 100, 100, 100, 300, 150, 300],
-  gentle: [200, 100, 200, 100, 200],
-}
-
-// Handle background messages
+// Manejar mensajes en segundo plano
 messaging.onBackgroundMessage((payload) => {
-  console.log("Received background message:", payload)
+  console.log('📨 Mensaje FCM recibido en background:', payload)
 
-  const alarmType = payload.data?.alarmType
-  const notificationTitle = payload.notification?.title || "Alarma Activada"
-  const notificationOptions = {
-    body: payload.notification?.body || "Se ha activado una alarma de emergencia",
-    icon: "/icon-192x192.png",
-    badge: "/icon-192x192.png",
-    tag: "shared-alarm",
-    requireInteraction: true,
-    silent: alarmType === "vibrate", // Don't play default sound for vibrate-only
-    actions: [
-      {
-        action: "acknowledge",
-        title: "Entendido",
-      },
-      {
-        action: "dismiss",
-        title: "Descartar",
-      },
-    ],
-    data: {
-      ...payload.data,
-      timestamp: Date.now(),
-    },
-  }
+  const { data } = payload
+  const { alarmType, timestamp, action } = data
 
-  // Show notification
-  self.registration.showNotification(notificationTitle, notificationOptions)
-
-  // Handle vibration with enhanced patterns
-  if (alarmType === "vibrate" && "vibrate" in navigator) {
-    // Use emergency pattern for maximum attention
-    navigator.vibrate(VIBRATION_PATTERNS.emergency)
-
-    // Repeat vibration pattern for emphasis
-    setTimeout(() => {
-      if ("vibrate" in navigator) {
-        navigator.vibrate(VIBRATION_PATTERNS.alert)
+  if (action === 'trigger_alarm') {
+    console.log('🚨 Activando alarma desde background:', alarmType)
+    
+    // Mostrar notificación
+    const notificationTitle = '🚨 Alarma Compartida Activada'
+    const notificationOptions = {
+      body: `Alarma de tipo ${alarmType === 'sound' ? 'sonido' : 'vibración'} activada desde otro dispositivo`,
+      icon: '/icon-192x192.png',
+      badge: '/icon-192x192.png',
+      tag: 'shared-alarm-bg',
+      requireInteraction: true,
+      silent: alarmType === 'vibrate',
+      data: {
+        alarmType,
+        timestamp,
+        action: 'trigger_alarm'
       }
-    }, 3000)
-  }
+    }
 
-  // For sound alarms, the browser will handle the default notification sound
-  // unless we set silent: true
-})
+    // Mostrar notificación
+    self.registration.showNotification(notificationTitle, notificationOptions)
 
-// Enhanced notification click handling
-self.addEventListener("notificationclick", (event) => {
-  console.log("Notification clicked:", event)
-
-  event.notification.close()
-
-  if (event.action === "acknowledge") {
-    console.log("Alarm acknowledged by user")
-    // Could send acknowledgment back to server here
-  } else if (event.action === "dismiss") {
-    console.log("Alarm dismissed by user")
-    // Stop any ongoing vibrations
-    if ("vibrate" in navigator) {
-      navigator.vibrate(0)
+    // Activar efectos de alarma si es posible
+    if (alarmType === 'vibrate' && 'vibrate' in navigator) {
+      // Patrón de vibración de emergencia
+      navigator.vibrate([0, 1000, 500, 1000, 500, 1000])
     }
   }
-
-  // Focus or open the app
-  event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
-      // If app is already open, focus it
-      for (const client of clientList) {
-        if (client.url.includes(self.location.origin) && "focus" in client) {
-          return client.focus()
-        }
-      }
-      // If app is not open, open it
-      if (clients.openWindow) {
-        return clients.openWindow("/")
-      }
-    }),
-  )
 })
 
-// Handle notification close
-self.addEventListener("notificationclose", (event) => {
-  console.log("Notification closed:", event)
-
-  // Stop vibration when notification is closed
-  if ("vibrate" in navigator) {
-    navigator.vibrate(0)
+// Manejar clics en notificaciones
+self.addEventListener('notificationclick', (event) => {
+  console.log('👆 Notificación clickeada:', event.notification)
+  
+  event.notification.close()
+  
+  const { alarmType, action } = event.notification.data || {}
+  
+  if (action === 'trigger_alarm') {
+    // Enfocar la ventana de la app si está abierta
+    event.waitUntil(
+      clients.matchAll({ type: 'window' }).then((clientList) => {
+        for (const client of clientList) {
+          if (client.url.includes(self.location.origin) && 'focus' in client) {
+            return client.focus()
+          }
+        }
+        
+        // Si no hay ventanas abiertas, abrir una nueva
+        if (clients.openWindow) {
+          return clients.openWindow('/')
+        }
+      })
+    )
   }
 })
+
+// Manejar instalación del service worker
+self.addEventListener('install', (event) => {
+  console.log('📱 Service Worker instalado')
+  self.skipWaiting()
+})
+
+// Manejar activación del service worker
+self.addEventListener('activate', (event) => {
+  console.log('🚀 Service Worker activado')
+  event.waitUntil(self.clients.claim())
+})
+
+// Manejar mensajes del cliente
+self.addEventListener('message', (event) => {
+  console.log('📨 Mensaje del cliente recibido:', event.data)
+  
+  if (event.data && event.data.type === 'alarm') {
+    const { alarmType } = event.data
+    
+    // Mostrar notificación local
+    const notificationTitle = '🚨 Alarma Local Activada'
+    const notificationOptions = {
+      body: `Alarma de tipo ${alarmType === 'sound' ? 'sonido' : 'vibración'} activada`,
+      icon: '/icon-192x192.png',
+      badge: '/icon-192x192.png',
+      tag: 'local-alarm',
+      requireInteraction: true,
+      silent: alarmType === 'vibrate'
+    }
+    
+    event.waitUntil(
+      self.registration.showNotification(notificationTitle, notificationOptions)
+    )
+  }
+})
+
+// Función para activar efectos de alarma
+function triggerAlarmEffects(type) {
+  if (type === 'vibrate' && 'vibrate' in navigator) {
+    // Patrón de vibración de emergencia
+    navigator.vibrate([0, 1000, 500, 1000, 500, 1000])
+  }
+  
+  // Reproducir sonido de alarma
+  if (type === 'sound') {
+    // Crear audio context para reproducir sonido
+    const audioContext = new (self.AudioContext || self.webkitAudioContext)()
+    const oscillator = audioContext.createOscillator()
+    const gainNode = audioContext.createGain()
+    
+    oscillator.connect(gainNode)
+    gainNode.connect(audioContext.destination)
+    
+    oscillator.frequency.setValueAtTime(800, audioContext.currentTime)
+    oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1)
+    oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.2)
+    
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5)
+    
+    oscillator.start(audioContext.currentTime)
+    oscillator.stop(audioContext.currentTime + 0.5)
+  }
+}
+
+console.log('✅ Firebase Messaging Service Worker configurado correctamente')

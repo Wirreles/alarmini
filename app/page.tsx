@@ -208,8 +208,15 @@ export default function AlarmApp() {
       {isSubscribed && hasMinimumPermissions && (
         <Card className="w-full max-w-sm p-3 bg-card border border-border">
           <div className="flex items-center gap-2 justify-center">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium text-foreground">Conectado al sistema de alarmas</span>
+            <div className={`w-2 h-2 rounded-full animate-pulse ${
+              isConnected ? 'bg-green-500' : 'bg-yellow-500'
+            }`}></div>
+            <span className="text-sm font-medium text-foreground">
+              {isConnected 
+                ? "Conectado al sistema de alarmas compartidas" 
+                : "Conectado (modo local)"
+              }
+            </span>
           </div>
         </Card>
       )}

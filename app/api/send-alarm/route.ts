@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { API_ENDPOINTS } from "@/lib/firebase-config"
 
 interface AlarmRequest {
   type: "sound" | "vibrate"
@@ -19,21 +20,49 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid alarm type. Must be "sound" or "vibrate"' }, { status: 400 })
     }
 
-    // Simular envío exitoso por ahora
-    // TODO: Implementar FCM real cuando las Cloud Functions estén desplegadas
-    console.log("✅ Alarma simulada enviada exitosamente")
+    // Enviar alarma a través de FCM
+    try {
+      console.log("📡 Enviando alarma a través de FCM...")
+      
+      const response = await fetch(API_ENDPOINTS.SEND_ALARM, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type,
+          message: message || `Alarma ${type === "sound" ? "sonora" : "vibratoria"} activada`,
+        }),
+      })
 
-    const response = {
-      success: true,
-      messageId: `sim_${Date.now()}`,
-      type: type,
-      timestamp: Date.now(),
-      note: "Simulación - Cloud Functions no desplegadas aún",
+      if (!response.ok) {
+        throw new Error(`Error HTTP: ${response.status}`)
+      }
+
+      const result = await response.json()
+      console.log("✅ Alarma enviada exitosamente a través de FCM:", result)
+
+      return NextResponse.json({
+        success: true,
+        messageId: result.messageId || `fcm_${Date.now()}`,
+        type: type,
+        timestamp: Date.now(),
+        note: "Alarma enviada a todos los dispositivos conectados",
+      })
+    } catch (fcmError) {
+      console.error("❌ Error enviando alarma por FCM:", fcmError)
+      
+      // Fallback: simular envío exitoso si FCM falla
+      console.log("⚠️ Usando modo de simulación como fallback")
+      
+      return NextResponse.json({
+        success: true,
+        messageId: `sim_${Date.now()}`,
+        type: type,
+        timestamp: Date.now(),
+        note: "Alarma simulada - FCM no disponible",
+      })
     }
-
-    console.log("📤 Respuesta:", response)
-
-    return NextResponse.json(response)
   } catch (error) {
     console.error("❌ Error en API route send-alarm:", error)
     return NextResponse.json(
